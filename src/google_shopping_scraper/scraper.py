@@ -48,6 +48,12 @@ class GoogleShoppingScraper:
         self._logger = logger if logger else logging.getLogger(__name__)
         self._consent_button_xpath = "/html/body/c-wiz/div/div/div/div[2]/div[1]/div[3]/div[1]/div[1]/form[2]/div/div/button/span"
         self._last_request_time = 0
+        
+        # Create debug directory if it doesn't exist
+        self.debug_dir = "debug"
+        if not os.path.exists(self.debug_dir):
+            os.makedirs(self.debug_dir)
+            self._logger.info(f"Created debug directory: {self.debug_dir}")
 
     def _add_random_delay(self, min_delay: float = 1.0, max_delay: float = 3.0) -> None:
         """Adds a random delay to avoid being detected as a bot"""
@@ -342,9 +348,10 @@ class GoogleShoppingScraper:
         try:
             html_content = driver.page_source
             filename = f"debug_google_shopping_{query.replace(' ', '_')}.html"
-            with open(filename, 'w', encoding='utf-8') as f:
+            filepath = os.path.join(self.debug_dir, filename)
+            with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(html_content)
-            self._logger.info(f"HTML content saved to {filename} for debugging")
+            self._logger.info(f"HTML content saved to {filepath} for debugging")
             
             # Check if we hit a CAPTCHA
             if "recaptcha" in html_content.lower() or "unusual traffic" in html_content.lower():

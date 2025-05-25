@@ -17,3 +17,8 @@ venv.bak/
 
 # Generated CSV files
 *.csv
+
+# Debug files and directory
+debug/
+*.html
+*.log
