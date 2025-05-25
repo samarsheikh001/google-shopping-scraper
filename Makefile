@@ -7,6 +7,18 @@ install:
 	poetry install
 
 
+.PHONY: run
+run:
+	@echo Starting Google Shopping Scraper API...
+	poetry run python run_api.py
+
+
+.PHONY: stop
+stop:
+	@echo Stopping Google Shopping Scraper API...
+	@for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000') do taskkill /f /pid %%a 2>nul || echo No API process found on port 8000
+
+
 .PHONY: scrape
 scrape:
 ifndef QUERY

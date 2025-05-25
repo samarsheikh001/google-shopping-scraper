@@ -38,13 +38,123 @@ To run this tool, you need to have Python 3.11 installed in your system.
 
 ### Installation
 
+You can install the dependencies using either Poetry (recommended) or pip.
+
+#### Option 1: Using Poetry (Recommended)
+
 Open up a terminal window, navigate to this repository and run this command:
 
-```make install```
+```bash
+make install
+```
 
-### Scraping Google Shopping
+Or manually with Poetry:
 
-To scrape shopping items from Google Shopping, simply run this command in your terminal with a query of your choosing:
+```bash
+poetry install
+```
+
+#### Option 2: Using pip
+
+If you prefer to use pip, you can install the dependencies from the requirements file:
+
+```bash
+pip install -r requirements.txt
+```
+
+Or install the simplified requirements:
+
+```bash
+pip install -r requirements-simple.txt
+```
+
+**Note:** Make sure you have Python 3.11 or higher installed.
+
+### Using the API
+
+The scraper now includes a FastAPI-based REST API that returns JSON data instead of saving to files.
+
+#### Starting the API Server
+
+To start the API server, run:
+
+```bash
+python run_api.py
+```
+
+Or alternatively:
+
+```bash
+uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+```
+
+If you installed with Poetry, you can also run:
+
+```bash
+poetry run python run_api.py
+```
+
+The API will be available at `http://localhost:8000`
+
+#### API Endpoints
+
+- **GET /** - API information and available endpoints
+- **GET /scrape** - Scrape Google Shopping and return JSON data
+- **GET /docs** - Interactive API documentation (Swagger UI)
+
+#### Making API Requests
+
+**Example 1: Basic scraping request**
+```bash
+curl "http://localhost:8000/scrape?query=cat%20food"
+```
+
+**Example 2: Scraping with visible browser (non-headless)**
+```bash
+curl "http://localhost:8000/scrape?query=cat%20food&headless=false"
+```
+
+**Example 3: Using Python requests**
+```python
+import requests
+
+response = requests.get("http://localhost:8000/scrape", params={
+    "query": "cat food",
+    "headless": True
+})
+
+data = response.json()
+print(f"Found {data['total_items']} items")
+for item in data['items']:
+    print(f"- {item['title']}: {item['price']}")
+```
+
+#### API Response Format
+
+The API returns JSON data in the following format:
+
+```json
+{
+  "query": "cat food",
+  "scraped_at": "2024-01-15T10:30:00.123456",
+  "total_items": 20,
+  "items": [
+    {
+      "title": "Premium Cat Food",
+      "price": "$29.99",
+      "delivery_price": "Free delivery",
+      "review": "4.5 stars (1,234 reviews)",
+      "url": "https://...",
+      "image_url": "https://...",
+      "saved_image_path": "/path/to/image.jpg"
+    }
+  ]
+}
+```
+
+### Scraping Google Shopping (Command Line)
+
+You can still use the original command-line interface to scrape shopping items and save them to files:
 
 ```make scrape QUERY="<your_shopping_search_query>"```
 
