@@ -39,16 +39,18 @@ def main():
     parser.add_argument('query', nargs='?', default='cat food', help='Search query for Google Shopping')
     parser.add_argument('--headless', action='store_true', default=True, help='Run browser in headless mode (default: True)')
     parser.add_argument('--no-headless', action='store_false', dest='headless', help='Run browser with visible window')
+    parser.add_argument('--fast', action='store_true', help='Enable fast mode for quicker scraping (reduced delays)')
     args = parser.parse_args()
     
     logger = setup_logging()
     
     logger.info(f"Starting Google Shopping scraper for query: '{args.query}'")
     logger.info(f"Headless mode: {args.headless}")
+    logger.info(f"Fast mode: {args.fast}")
     
     try:
         # Initialize scraper
-        scraper = GoogleShoppingScraper(logger=logger)
+        scraper = GoogleShoppingScraper(logger=logger, fast_mode=args.fast)
         
         # Scrape data
         items = scraper.get_shopping_data_for_query(args.query, headless=args.headless)

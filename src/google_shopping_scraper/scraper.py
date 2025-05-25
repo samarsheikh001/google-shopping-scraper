@@ -46,29 +46,37 @@ class DriverGetShoppingDataError(BaseException):
 class GoogleShoppingScraper:
     """Class for scraping Google Shopping"""
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(self, logger: logging.Logger | None = None, fast_mode: bool = False) -> None:
         self._logger = logger if logger else logging.getLogger(__name__)
         self._consent_button_xpath = "/html/body/c-wiz/div/div/div/div[2]/div[1]/div[3]/div[1]/div[1]/form[2]/div/div/button/span"
         self._last_request_time = 0
+        self.fast_mode = fast_mode  # Enable fast mode for reduced delays
         
         # Create debug directory if it doesn't exist
         self.debug_dir = "debug"
         if not os.path.exists(self.debug_dir):
             os.makedirs(self.debug_dir)
             self._logger.info(f"Created debug directory: {self.debug_dir}")
+        
+        if fast_mode:
+            self._logger.info("Fast mode enabled - reduced delays for faster scraping")
 
-    def _add_random_delay(self, min_delay: float = 1.0, max_delay: float = 3.0) -> None:
-        """Adds a random delay to avoid being detected as a bot"""
+    def _add_random_delay(self, min_delay: float = 0.5, max_delay: float = 1.5) -> None:
+        """Adds a random delay to avoid being detected as a bot - optimized for speed"""
+        if self.fast_mode:
+            min_delay = min_delay * 0.3  # Reduce delays by 70% in fast mode
+            max_delay = max_delay * 0.3
+        
         current_time = time.time()
         time_since_last_request = current_time - self._last_request_time
         
-        # Ensure minimum time between requests
-        min_time_between_requests = 2.0
+        # Reduce minimum time between requests for faster scraping
+        min_time_between_requests = 0.5 if self.fast_mode else 1.0
         if time_since_last_request < min_time_between_requests:
             additional_delay = min_time_between_requests - time_since_last_request
             time.sleep(additional_delay)
         
-        # Add random delay
+        # Reduced random delay for speed
         delay = random.uniform(min_delay, max_delay)
         self._logger.debug(f"Adding random delay of {delay:.2f} seconds")
         time.sleep(delay)
@@ -173,8 +181,8 @@ class GoogleShoppingScraper:
         try:
             driver.get(url)
             
-            # Random delay to simulate human reading time
-            time.sleep(random.uniform(2, 4))
+            # Reduced delay for faster scraping
+            time.sleep(random.uniform(1, 2))
             
             # Try to find and click consent button with human-like behavior
             try:
@@ -205,8 +213,8 @@ class GoogleShoppingScraper:
         # Wait for JavaScript to render the page after consent
         self._wait_for_javascript_rendering(driver)
         
-        # Random delay after consent
-        time.sleep(random.uniform(2, 4))
+        # Reduced delay after consent for speed
+        time.sleep(random.uniform(0.5, 1.5))
 
     def _get_data_from_item_div(self, div) -> ShoppingItem:
         """Retrieves shopping item data from a div element and returns it as a ShoppingItem object."""
@@ -247,8 +255,8 @@ class GoogleShoppingScraper:
             # Extract image URL (no local saving)
             image_url = None
             try:
-                # Small delay to allow images to load
-                time.sleep(random.uniform(0.1, 0.3))
+                # Minimal delay to allow images to load
+                time.sleep(random.uniform(0.01, 0.1))
                 
                 # Look for images in multiple ways
                 all_imgs = []
@@ -356,21 +364,20 @@ class GoogleShoppingScraper:
             self._logger.debug(f"Error extracting data from item: {e}")
             return None
 
-    def _wait_for_javascript_rendering(self, driver: webdriver.Chrome, timeout: int = 15) -> None:
-        """Wait for JavaScript to render the page content before extracting HTML."""
+    def _wait_for_javascript_rendering(self, driver: webdriver.Chrome, timeout: int = 8) -> None:
+        """Wait for JavaScript to render the page content before extracting HTML - optimized for speed."""
         try:
             self._logger.debug("Waiting for JavaScript to render page content...")
             
             # Wait for the main shopping results container to be present
             wait = WebDriverWait(driver, timeout)
             
-            # Try multiple selectors that indicate the page has loaded
+            # Try multiple selectors that indicate the page has loaded - prioritized by speed
             selectors_to_wait_for = [
-                ".sh-dgr__content",  # Main shopping results container
-                ".gkQHve",           # Product title elements
+                ".gkQHve",           # Product title elements (most reliable and fast)
                 ".lmQWe",            # Price elements
                 "[data-hveid]",      # Elements with Google's tracking IDs
-                ".sh-dgr__grid-result"  # Grid result items
+                ".sh-dgr__content",  # Main shopping results container
             ]
             
             # Wait for at least one of these selectors to be present
@@ -382,11 +389,11 @@ class GoogleShoppingScraper:
                 except TimeoutException:
                     continue
             
-            # Additional wait for dynamic content to load
-            time.sleep(2)
+            # Reduced wait for dynamic content to load
+            time.sleep(1)
             
-            # Wait for the page to be in a stable state (no more DOM changes)
-            self._wait_for_page_stability(driver)
+            # Quick stability check instead of full page stability
+            self._quick_stability_check(driver)
             
             self._logger.debug("JavaScript rendering wait completed")
             
@@ -420,6 +427,27 @@ class GoogleShoppingScraper:
         except Exception as e:
             self._logger.debug(f"Error waiting for page stability: {e}")
 
+    def _quick_stability_check(self, driver: webdriver.Chrome) -> None:
+        """Quick stability check for faster scraping - only 2 checks instead of 5."""
+        try:
+            previous_element_count = 0
+            
+            for _ in range(2):  # Only 2 checks for speed
+                # Count product elements instead of full page source for speed
+                current_element_count = len(driver.find_elements(By.CSS_SELECTOR, ".gkQHve"))
+                
+                if current_element_count == previous_element_count and current_element_count > 0:
+                    self._logger.debug("Quick stability check passed")
+                    return
+                
+                previous_element_count = current_element_count
+                time.sleep(0.5)  # Shorter wait
+                
+            self._logger.debug("Quick stability check completed")
+            
+        except Exception as e:
+            self._logger.debug(f"Error in quick stability check: {e}")
+
     def _save_html_for_debug(self, driver: webdriver.Chrome, query: str) -> None:
         """Saves the current page HTML to a file for debugging purposes after JavaScript rendering."""
         try:
@@ -445,17 +473,18 @@ class GoogleShoppingScraper:
             self._logger.error(f"Failed to save HTML for debugging: {e}")
 
     def _get_items_for_query(self, driver: webdriver.Chrome, query: str = "") -> List[ShoppingItem]:
-        """Retrieves shopping item data from a Google Shopping page with human-like behavior."""
+        """Retrieves shopping item data from a Google Shopping page with optimized speed."""
         self._logger.info("Scraping Google shopping page..")
         
-        # Random delay to simulate human browsing
-        time.sleep(random.uniform(3, 7))
+        # Reduced delay for faster scraping
+        time.sleep(random.uniform(1, 2))
         
         # Ensure JavaScript has rendered the page content before proceeding
         self._wait_for_javascript_rendering(driver)
 
-        # Save HTML for debugging (now with fully rendered content)
-        self._save_html_for_debug(driver, query)
+        # Save HTML for debugging (now with fully rendered content) - only in debug mode
+        if self._logger.level <= logging.DEBUG:
+            self._save_html_for_debug(driver, query)
 
         # Smart scrolling - only scroll until we find enough products
         item_data = self._smart_scroll_and_extract(driver)
@@ -512,9 +541,9 @@ class GoogleShoppingScraper:
         
         for i, container in enumerate(items):
             try:
-                # Random delay between processing items (shorter delays)
+                # Minimal delay between processing items for speed
                 if i > 0:
-                    time.sleep(random.uniform(0.05, 0.2))
+                    time.sleep(random.uniform(0.01, 0.05))
                 
                 item = self._get_data_from_item_div(container)
                 if item:
@@ -632,8 +661,8 @@ class GoogleShoppingScraper:
                                         item_data.append(item)
                                         self._logger.info(f"Found product {len(item_data)}/5: {item.title[:50]}...")
                                         
-                                        # Small delay between processing
-                                        time.sleep(random.uniform(0.1, 0.3))
+                                        # Minimal delay between processing for speed
+                                        time.sleep(random.uniform(0.01, 0.05))
                         except:
                             continue
                 
@@ -650,8 +679,8 @@ class GoogleShoppingScraper:
                 current_position += scroll_amount
                 driver.execute_script(f"window.scrollTo(0, {current_position});")
                 
-                # Random pause between scrolls
-                time.sleep(random.uniform(0.8, 1.5))
+                # Reduced pause between scrolls for speed
+                time.sleep(random.uniform(0.3, 0.7))
                 scroll_count += 1
                 
                 # Check if we've reached the bottom

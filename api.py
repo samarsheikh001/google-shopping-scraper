@@ -77,7 +77,8 @@ async def root():
 @app.get("/scrape", response_model=ShoppingResponse)
 async def scrape_google_shopping(
     query: str = Query(..., description="Search query for Google Shopping"),
-    headless: bool = Query(True, description="Run browser in headless mode")
+    headless: bool = Query(True, description="Run browser in headless mode"),
+    fast: bool = Query(False, description="Enable fast mode for quicker scraping")
 ):
     """
     Scrape Google Shopping for the given query and return JSON results.
@@ -85,6 +86,7 @@ async def scrape_google_shopping(
     Args:
         query: Search query for Google Shopping
         headless: Whether to run browser in headless mode (default: True)
+        fast: Whether to enable fast mode for quicker scraping (default: False)
     
     Returns:
         JSON response with scraped shopping data
@@ -93,10 +95,11 @@ async def scrape_google_shopping(
     
     logger.info(f"API request - Starting Google Shopping scraper for query: '{query}'")
     logger.info(f"Headless mode: {headless}")
+    logger.info(f"Fast mode: {fast}")
     
     try:
         # Initialize scraper
-        scraper = GoogleShoppingScraper(logger=logger)
+        scraper = GoogleShoppingScraper(logger=logger, fast_mode=fast)
         
         # Scrape data
         items = scraper.get_shopping_data_for_query(query, headless=headless)
