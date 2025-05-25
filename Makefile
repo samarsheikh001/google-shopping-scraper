@@ -13,5 +13,10 @@ ifndef QUERY
 	@echo Error: A query string for which to search Google Shopping is required. Use make scrape QUERY="<query>"
 	@exit 1
 else
-	poetry run python -m google_shopping_scraper --query="$(QUERY)"
+	poetry run python scrape_to_json.py "$(QUERY)"
 endif
+
+.PHONY: clean
+clean:
+	Remove-Item -Recurse -Force debug -ErrorAction SilentlyContinue
+	Remove-Item shopping_results_*.json -ErrorAction SilentlyContinue
