@@ -15,8 +15,9 @@ ENV/
 env.bak/
 venv.bak/
 
-# Generated CSV files
+# Generated files
 *.csv
+shopping_results_*.json
 
 # Debug files and directory
 debug/
