@@ -46,11 +46,14 @@ class DriverGetShoppingDataError(BaseException):
 class GoogleShoppingScraper:
     """Class for scraping Google Shopping"""
 
-    def __init__(self, logger: logging.Logger | None = None, fast_mode: bool = False) -> None:
+    def __init__(self, logger: logging.Logger | None = None, fast_mode: bool = False, keep_browser_open: bool = False) -> None:
         self._logger = logger if logger else logging.getLogger(__name__)
         self._consent_button_xpath = "/html/body/c-wiz/div/div/div/div[2]/div[1]/div[3]/div[1]/div[1]/form[2]/div/div/button/span"
         self._last_request_time = 0
         self.fast_mode = fast_mode  # Enable fast mode for reduced delays
+        self.keep_browser_open = keep_browser_open  # Keep browser session alive
+        self._driver = None  # Persistent browser session
+        self._driver_config = {}  # Store driver configuration
         
         # Create debug directory if it doesn't exist
         self.debug_dir = "debug"
@@ -60,6 +63,9 @@ class GoogleShoppingScraper:
         
         if fast_mode:
             self._logger.info("Fast mode enabled - reduced delays for faster scraping")
+        
+        if keep_browser_open:
+            self._logger.info("Browser session management enabled - browser will stay open between requests")
 
     def _add_random_delay(self, min_delay: float = 0.5, max_delay: float = 1.5) -> None:
         """Adds a random delay to avoid being detected as a bot - optimized for speed"""
@@ -173,6 +179,61 @@ class GoogleShoppingScraper:
         driver.execute_script("Object.defineProperty(navigator, 'deviceMemory', {get: () => 8})")
         
         return driver
+
+    def _get_or_create_driver(self, proxy: str = None, headless: bool = True) -> webdriver.Chrome:
+        """Get existing driver or create new one if needed"""
+        # Check if we should reuse existing driver
+        if (self.keep_browser_open and 
+            self._driver is not None and 
+            self._driver_config.get('proxy') == proxy and 
+            self._driver_config.get('headless') == headless):
+            
+            try:
+                # Test if driver is still alive
+                self._driver.current_url
+                self._logger.debug("Reusing existing browser session")
+                return self._driver
+            except Exception as e:
+                self._logger.warning(f"Existing browser session is dead, creating new one: {e}")
+                self._driver = None
+        
+        # Create new driver
+        self._logger.debug("Creating new browser session")
+        self._driver = self._init_chrome_driver(proxy=proxy, headless=headless)
+        self._driver_config = {'proxy': proxy, 'headless': headless}
+        return self._driver
+
+    def _clear_browser_state(self, driver: webdriver.Chrome) -> None:
+        """Clear browser state between requests for better reliability"""
+        try:
+            if self.keep_browser_open:
+                # Clear cookies and local storage
+                driver.delete_all_cookies()
+                driver.execute_script("window.localStorage.clear();")
+                driver.execute_script("window.sessionStorage.clear();")
+                self._logger.debug("Cleared browser state for next request")
+        except Exception as e:
+            self._logger.debug(f"Error clearing browser state: {e}")
+
+    def close_browser(self) -> None:
+        """Manually close the browser session"""
+        if self._driver:
+            try:
+                self._driver.quit()
+                self._logger.info("Browser session closed")
+            except Exception as e:
+                self._logger.warning(f"Error closing browser: {e}")
+            finally:
+                self._driver = None
+                self._driver_config = {}
+
+    def __del__(self):
+        """Cleanup when object is destroyed"""
+        if hasattr(self, '_driver') and self._driver:
+            try:
+                self._driver.quit()
+            except:
+                pass
 
     def _click_consent_button(self, driver: webdriver.Chrome, query: str) -> None:
         """Clicks google consent form with selenium Chrome webdriver using human-like behavior"""
@@ -765,9 +826,12 @@ class GoogleShoppingScraper:
                 else:
                     self._add_random_delay(1.0, 3.0)
                 
-                driver = self._init_chrome_driver(proxy=proxy, headless=headless)
+                driver = self._get_or_create_driver(proxy=proxy, headless=headless)
                 
                 try:
+                    # Clear browser state if reusing browser
+                    self._clear_browser_state(driver)
+                    
                     self._click_consent_button(driver, query)
                     items = self._get_items_for_query(driver, query)
                     
@@ -785,10 +849,12 @@ class GoogleShoppingScraper:
                         continue
                     raise DriverGetShoppingDataError from e
                 finally:
-                    try:
-                        driver.quit()  # Use quit() instead of close() for cleaner shutdown
-                    except:
-                        pass
+                    # Only close driver if not keeping browser open
+                    if not self.keep_browser_open:
+                        try:
+                            driver.quit()  # Use quit() instead of close() for cleaner shutdown
+                        except:
+                            pass
                         
             except Exception as e:
                 if attempt < max_retries - 1:

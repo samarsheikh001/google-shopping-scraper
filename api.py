@@ -40,6 +40,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Global scraper instance for browser session reuse
+_global_scraper = None
+
 
 def setup_logging():
     """Setup logging configuration"""
@@ -78,7 +81,8 @@ async def root():
 async def scrape_google_shopping(
     query: str = Query(..., description="Search query for Google Shopping"),
     headless: bool = Query(True, description="Run browser in headless mode"),
-    fast: bool = Query(False, description="Enable fast mode for quicker scraping")
+    fast: bool = Query(False, description="Enable fast mode for quicker scraping"),
+    keep_browser: bool = Query(False, description="Keep browser open between requests")
 ):
     """
     Scrape Google Shopping for the given query and return JSON results.
@@ -87,6 +91,7 @@ async def scrape_google_shopping(
         query: Search query for Google Shopping
         headless: Whether to run browser in headless mode (default: True)
         fast: Whether to enable fast mode for quicker scraping (default: False)
+        keep_browser: Whether to keep browser open between requests (default: False)
     
     Returns:
         JSON response with scraped shopping data
@@ -96,10 +101,20 @@ async def scrape_google_shopping(
     logger.info(f"API request - Starting Google Shopping scraper for query: '{query}'")
     logger.info(f"Headless mode: {headless}")
     logger.info(f"Fast mode: {fast}")
+    logger.info(f"Keep browser open: {keep_browser}")
     
     try:
-        # Initialize scraper
-        scraper = GoogleShoppingScraper(logger=logger, fast_mode=fast)
+        # Use global scraper instance if keep_browser is enabled
+        global _global_scraper
+        
+        if keep_browser:
+            if _global_scraper is None:
+                logger.info("Creating global scraper instance with browser session management")
+                _global_scraper = GoogleShoppingScraper(logger=logger, fast_mode=fast, keep_browser_open=True)
+            scraper = _global_scraper
+        else:
+            # Create new scraper instance for this request
+            scraper = GoogleShoppingScraper(logger=logger, fast_mode=fast, keep_browser_open=False)
         
         # Scrape data
         items = scraper.get_shopping_data_for_query(query, headless=headless)
@@ -142,6 +157,22 @@ async def scrape_google_shopping(
     except Exception as e:
         logger.error(f"Error during scraping: {e}")
         raise HTTPException(status_code=500, detail=f"Error during scraping: {str(e)}")
+
+
+@app.post("/cleanup")
+async def cleanup_browser():
+    """
+    Cleanup the global browser session.
+    Useful when you're done with scraping and want to free resources.
+    """
+    global _global_scraper
+    
+    if _global_scraper:
+        _global_scraper.close_browser()
+        _global_scraper = None
+        return {"message": "Browser session cleaned up successfully"}
+    else:
+        return {"message": "No active browser session to cleanup"}
 
 
 if __name__ == "__main__":

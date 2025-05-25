@@ -40,6 +40,7 @@ def main():
     parser.add_argument('--headless', action='store_true', default=True, help='Run browser in headless mode (default: True)')
     parser.add_argument('--no-headless', action='store_false', dest='headless', help='Run browser with visible window')
     parser.add_argument('--fast', action='store_true', help='Enable fast mode for quicker scraping (reduced delays)')
+    parser.add_argument('--keep-browser', action='store_true', help='Keep browser open between requests (faster for multiple queries)')
     args = parser.parse_args()
     
     logger = setup_logging()
@@ -47,10 +48,11 @@ def main():
     logger.info(f"Starting Google Shopping scraper for query: '{args.query}'")
     logger.info(f"Headless mode: {args.headless}")
     logger.info(f"Fast mode: {args.fast}")
+    logger.info(f"Keep browser open: {args.keep_browser}")
     
     try:
         # Initialize scraper
-        scraper = GoogleShoppingScraper(logger=logger, fast_mode=args.fast)
+        scraper = GoogleShoppingScraper(logger=logger, fast_mode=args.fast, keep_browser_open=args.keep_browser)
         
         # Scrape data
         items = scraper.get_shopping_data_for_query(args.query, headless=args.headless)
@@ -105,6 +107,10 @@ def main():
     except Exception as e:
         logger.error(f"Error during scraping: {e}")
         sys.exit(1)
+    finally:
+        # Clean up browser if keeping it open
+        if hasattr(scraper, 'close_browser'):
+            scraper.close_browser()
 
 
 if __name__ == "__main__":
