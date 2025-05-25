@@ -15,7 +15,7 @@ class GoogleShoppingScraperSettings(BaseSettings):
     def get_shopping_url(self, query: str) -> str:
         """Returns a Google Shopping URL for a given query string."""
         encoded_query = quote(query)
-        return f"{self.url}&q={encoded_query}"
+        return f"{self.url}&q={encoded_query}&gl=us"
 
 
 google_shopping_scraper_settings = GoogleShoppingScraperSettings()

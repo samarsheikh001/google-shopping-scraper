@@ -15,11 +15,13 @@ from typing import List
 
 from pydantic import ValidationError
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 from google_shopping_scraper.conf import google_shopping_scraper_settings
@@ -200,6 +202,9 @@ class GoogleShoppingScraper:
         except Exception as e:
             raise ConsentFormAcceptError from e
 
+        # Wait for JavaScript to render the page after consent
+        self._wait_for_javascript_rendering(driver)
+        
         # Random delay after consent
         time.sleep(random.uniform(2, 4))
 
@@ -351,15 +356,82 @@ class GoogleShoppingScraper:
             self._logger.debug(f"Error extracting data from item: {e}")
             return None
 
-    def _save_html_for_debug(self, driver: webdriver.Chrome, query: str) -> None:
-        """Saves the current page HTML to a file for debugging purposes."""
+    def _wait_for_javascript_rendering(self, driver: webdriver.Chrome, timeout: int = 15) -> None:
+        """Wait for JavaScript to render the page content before extracting HTML."""
         try:
+            self._logger.debug("Waiting for JavaScript to render page content...")
+            
+            # Wait for the main shopping results container to be present
+            wait = WebDriverWait(driver, timeout)
+            
+            # Try multiple selectors that indicate the page has loaded
+            selectors_to_wait_for = [
+                ".sh-dgr__content",  # Main shopping results container
+                ".gkQHve",           # Product title elements
+                ".lmQWe",            # Price elements
+                "[data-hveid]",      # Elements with Google's tracking IDs
+                ".sh-dgr__grid-result"  # Grid result items
+            ]
+            
+            # Wait for at least one of these selectors to be present
+            for selector in selectors_to_wait_for:
+                try:
+                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                    self._logger.debug(f"Found element with selector: {selector}")
+                    break
+                except TimeoutException:
+                    continue
+            
+            # Additional wait for dynamic content to load
+            time.sleep(2)
+            
+            # Wait for the page to be in a stable state (no more DOM changes)
+            self._wait_for_page_stability(driver)
+            
+            self._logger.debug("JavaScript rendering wait completed")
+            
+        except TimeoutException:
+            self._logger.warning(f"Timeout waiting for JavaScript rendering after {timeout} seconds")
+        except Exception as e:
+            self._logger.warning(f"Error waiting for JavaScript rendering: {e}")
+
+    def _wait_for_page_stability(self, driver: webdriver.Chrome, max_wait: int = 5) -> None:
+        """Wait for the page to reach a stable state with no DOM changes."""
+        try:
+            previous_html_length = 0
+            stable_count = 0
+            
+            for _ in range(max_wait):
+                current_html_length = len(driver.page_source)
+                
+                if current_html_length == previous_html_length:
+                    stable_count += 1
+                    if stable_count >= 2:  # Page is stable for 2 consecutive checks
+                        self._logger.debug("Page reached stable state")
+                        return
+                else:
+                    stable_count = 0
+                
+                previous_html_length = current_html_length
+                time.sleep(1)
+                
+            self._logger.debug("Page stability wait completed")
+            
+        except Exception as e:
+            self._logger.debug(f"Error waiting for page stability: {e}")
+
+    def _save_html_for_debug(self, driver: webdriver.Chrome, query: str) -> None:
+        """Saves the current page HTML to a file for debugging purposes after JavaScript rendering."""
+        try:
+            # Wait for JavaScript to render the page content
+            self._wait_for_javascript_rendering(driver)
+            
             html_content = driver.page_source
             filename = f"debug_google_shopping_{query.replace(' ', '_')}.html"
             filepath = os.path.join(self.debug_dir, filename)
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(html_content)
-            self._logger.info(f"HTML content saved to {filepath} for debugging")
+            self._logger.info(f"HTML content (after JavaScript rendering) saved to {filepath} for debugging")
             
             # Check if we hit a CAPTCHA
             if "recaptcha" in html_content.lower() or "unusual traffic" in html_content.lower():
@@ -378,8 +450,11 @@ class GoogleShoppingScraper:
         
         # Random delay to simulate human browsing
         time.sleep(random.uniform(3, 7))
+        
+        # Ensure JavaScript has rendered the page content before proceeding
+        self._wait_for_javascript_rendering(driver)
 
-        # Save HTML for debugging
+        # Save HTML for debugging (now with fully rendered content)
         self._save_html_for_debug(driver, query)
 
         # Smart scrolling - only scroll until we find enough products
