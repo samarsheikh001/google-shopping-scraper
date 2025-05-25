@@ -3,6 +3,7 @@
 Script to scrape Google Shopping and save results as JSON with images.
 """
 
+import argparse
 import json
 import logging
 import sys
@@ -33,19 +34,24 @@ def setup_logging():
 
 def main():
     """Main function to run the scraper"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Scrape Google Shopping and save results as JSON')
+    parser.add_argument('query', nargs='?', default='cat food', help='Search query for Google Shopping')
+    parser.add_argument('--headless', action='store_true', default=True, help='Run browser in headless mode (default: True)')
+    parser.add_argument('--no-headless', action='store_false', dest='headless', help='Run browser with visible window')
+    args = parser.parse_args()
+    
     logger = setup_logging()
     
-    # Get search query from command line or use default
-    query = sys.argv[1] if len(sys.argv) > 1 else "cat food"
-    
-    logger.info(f"Starting Google Shopping scraper for query: '{query}'")
+    logger.info(f"Starting Google Shopping scraper for query: '{args.query}'")
+    logger.info(f"Headless mode: {args.headless}")
     
     try:
         # Initialize scraper
         scraper = GoogleShoppingScraper(logger=logger)
         
         # Scrape data
-        items = scraper.get_shopping_data_for_query(query)
+        items = scraper.get_shopping_data_for_query(args.query, headless=args.headless)
         
         if not items:
             logger.warning("No items found!")
@@ -67,14 +73,14 @@ def main():
         
         # Create output data with metadata
         output_data = {
-            "query": query,
+            "query": args.query,
             "scraped_at": datetime.now().isoformat(),
             "total_items": len(items_data),
             "items": items_data
         }
         
         # Save to JSON file
-        output_filename = f"shopping_results_{query.replace(' ', '_')}.json"
+        output_filename = f"shopping_results_{args.query.replace(' ', '_')}.json"
         with open(output_filename, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
         
@@ -83,7 +89,7 @@ def main():
         
         # Print summary
         print(f"\n=== SCRAPING RESULTS ===")
-        print(f"Query: {query}")
+        print(f"Query: {args.query}")
         print(f"Items found: {len(items)}")
         print(f"JSON file: {output_filename}")
         

@@ -73,9 +73,16 @@ class GoogleShoppingScraper:
         
         self._last_request_time = time.time()
 
-    def _init_chrome_driver(self, proxy: str = None) -> webdriver.Chrome:
+    def _init_chrome_driver(self, proxy: str = None, headless: bool = True) -> webdriver.Chrome:
         """Initializes Chrome webdriver with stealth options"""
         chrome_options = Options()
+        
+        # Headless mode for faster, automated scraping
+        if headless:
+            chrome_options.add_argument("--headless=new")  # Use new headless mode
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--no-first-run")
+            chrome_options.add_argument("--disable-default-apps")
         
         # Basic stealth options
         chrome_options.add_argument("--no-sandbox")
@@ -89,7 +96,8 @@ class GoogleShoppingScraper:
         
         # Window and display options
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--start-maximized")
+        if not headless:
+            chrome_options.add_argument("--start-maximized")
         
         # Network and security options
         chrome_options.add_argument("--disable-web-security")
@@ -625,7 +633,7 @@ class GoogleShoppingScraper:
 
 
 
-    def get_shopping_data_for_query(self, query: str, max_retries: int = 3, proxy: str = None) -> List[ShoppingItem]:
+    def get_shopping_data_for_query(self, query: str, max_retries: int = 3, proxy: str = None, headless: bool = True) -> List[ShoppingItem]:
         """
         Retrieves a list of shopping items in Google Shopping for a query with stealth measures.
 
@@ -633,6 +641,7 @@ class GoogleShoppingScraper:
             query: The search query string
             max_retries: Maximum number of retry attempts if scraping fails
             proxy: Optional proxy server (format: "ip:port" or "protocol://ip:port")
+            headless: Whether to run browser in headless mode (default: True)
 
         Returns:
             List[ShoppingItem]: A list of ShoppingItem objects.
@@ -652,7 +661,7 @@ class GoogleShoppingScraper:
                 else:
                     self._add_random_delay(1.0, 3.0)
                 
-                driver = self._init_chrome_driver(proxy=proxy)
+                driver = self._init_chrome_driver(proxy=proxy, headless=headless)
                 
                 try:
                     self._click_consent_button(driver, query)
