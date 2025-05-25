@@ -11,3 +11,5 @@ class ShoppingItem(BaseModel):
     delivery_price: str
     review: str | None
     url: str
+    image_url: str | None
+    saved_image_path: str | None
