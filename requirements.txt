@@ -1,0 +1,12 @@
+# Core dependencies for Google Shopping Scraper API
+pydantic>=2.7.4
+click>=8.1.7
+pandas>=2.2.2
+selenium>=4.22.0
+webdriver-manager>=4.0.2
+pydantic-settings>=2.3.4
+requests>=2.31.0
+
+# API dependencies
+fastapi>=0.104.1
+uvicorn>=0.24.0 
