@@ -18,5 +18,5 @@ endif
 
 .PHONY: clean
 clean:
-	Remove-Item -Recurse -Force debug -ErrorAction SilentlyContinue
-	Remove-Item shopping_results_*.json -ErrorAction SilentlyContinue
+	@if exist debug rmdir /s /q debug
+	@if exist shopping_results_*.json del /q shopping_results_*.json
